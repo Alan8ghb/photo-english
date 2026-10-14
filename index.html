@@ -1,0 +1,86 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#1e6fd9"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png">
+<title>拍照学英语</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;background:#fffaf0;color:#222;font-size:24px;line-height:1.4}
+header{background:#1e6fd9;color:#fff;padding:18px 16px;font-size:30px;font-weight:bold;display:flex;align-items:center;gap:12px;padding-top:max(18px,env(safe-area-inset-top))}
+header button{background:none;border:none;color:#fff;font-size:30px;padding:0 8px}
+main{padding:16px;max-width:700px;margin:auto}
+.big{display:block;width:100%;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;margin:12px 0;color:#fff;background:#1e6fd9}
+.green{background:#1a9b4b}.gray{background:#888}.orange{background:#e07b00}
+.card{background:#fff;border-radius:18px;padding:18px;margin:12px 0;box-shadow:0 2px 8px #0001}
+.rec{display:flex;align-items:center;gap:10px}.rec .info{flex:1}.rec .d{font-size:20px;color:#666}
+.del{background:#eee;border:none;border-radius:12px;font-size:20px;padding:12px}
+.en{font-size:40px;font-weight:bold;text-align:center;margin:16px 0;word-break:break-word}.en.s{font-size:30px}
+.play{display:block;margin:10px auto;width:120px;height:120px;border-radius:60px;border:none;background:#ffb300;font-size:56px}
+.opt{display:block;width:100%;min-height:90px;font-size:30px;border:3px solid #1e6fd9;background:#fff;border-radius:18px;margin:14px 0;padding:12px}
+.opt.s{font-size:24px}.opt.right{background:#1a9b4b;color:#fff;border-color:#1a9b4b}.opt.wrong{background:#fdd;border-color:#d33}
+.msg{text-align:center;font-size:30px;min-height:44px}.prog{text-align:center;color:#666}
+.row{padding:10px 0;border-bottom:1px solid #eee}.row .z{color:#1e6fd9}.na{color:#aaa}
+.tabs{display:flex;gap:10px}.tabs button{flex:1;font-size:24px;padding:14px;border-radius:14px;border:2px solid #1e6fd9;background:#fff}.tabs button.on{background:#1e6fd9;color:#fff}
+#busy{position:fixed;inset:0;background:#000a;color:#fff;display:none;align-items:center;justify-content:center;font-size:30px;text-align:center;padding:20px}
+img.prev{max-width:100%;border-radius:12px}
+</style></head><body>
+<header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
+<main id="app"></main>
+<div id="busy"></div>
+<input id="cam" type="file" accept="image/*" capture="environment" hidden>
+<input id="gal" type="file" accept="image/*" hidden>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="logic.js"></script><script src="translate.js"></script>
+<script>
+const $=s=>document.querySelector(s),app=$('#app');
+const load=()=>JSON.parse(localStorage.getItem('pe_records')||'[]');
+const save=r=>localStorage.setItem('pe_records',JSON.stringify(r));
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function busy(t){const b=$('#busy');b.style.display=t?'flex':'none';b.textContent=t||''}
+function setHead(t,back){$('#title').textContent=t;$('#back').style.display=back?'':'none'}
+function go(v,a){speechSynthesis.cancel();({home,detail,study}[v])(a);scrollTo(0,0)}
+function home(){setHead('拍照学英语');const rs=load();
+ app.innerHTML=`<button class="big" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" onclick="$('#gal').click()">🖼️ 从相册选</button>`+
+ (rs.length?'<h2>我的记录</h2>':'<p class="card">拍一页英文，自动整理单词和句子。</p>')+
+ rs.map((r,i)=>`<div class="card rec"><div class="info" onclick="go('detail',${i})"><b>${new Date(r.date).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</b><div class="d">单词 ${r.words.length} · 句子 ${r.sentences.length}</div></div><button class="big green" style="width:110px;min-height:64px;margin:0" onclick="go('study',{i:${i}})">学习</button><button class="del" onclick="del(${i})">删</button></div>`).join('')}
+function del(i){if(!confirm('删除这条记录？'))return;const r=load();r.splice(i,1);save(r);home()}
+async function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;
+ try{busy('正在识别文字…');const img=await shrink(f);
+  const res=await Tesseract.recognize(img,'eng',{logger:m=>{if(m.status==='recognizing text')busy('正在识别文字… '+Math.round(m.progress*100)+'%')}});
+  const text=res.data.text;const S=PE.sentences(text),W=PE.words(text);
+  if(!S.length&&!W.length){busy();alert('没有找到英文，请再拍清楚一点');return}
+  busy('正在翻译…');let tr=[];
+  try{tr=await PETranslate([...W,...S])}catch(_){}
+  const rec={date:Date.now(),text,thumb:await thumb(img),words:W.map((en,i)=>({type:'word',en,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
+  const rs=load();rs.unshift(rec);try{save(rs)}catch(_){rec.thumb='';save(rs)}busy();go('detail',0)
+ }catch(err){busy();alert('出错了：'+err.message)}}
+function shrink(f){return new Promise(ok=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const m=2000,s=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c)};im.src=u})}
+function thumb(c){const t=document.createElement('canvas'),s=400/c.width;t.width=400;t.height=c.height*s;t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.6)}
+$('#cam').onchange=onFile;$('#gal').onchange=onFile;
+let tab='word';
+function detail(i){const r=load()[i];setHead('学习记录',1);const list=tab==='word'?r.words:r.sentences;
+ app.innerHTML=`<button class="big green" onclick="go('study',{i:${i}})">▶ 开始学习</button>
+ <div class="tabs"><button class="${tab==='word'?'on':''}" onclick="tab='word';detail(${i})">单词 ${r.words.length}</button><button class="${tab==='sent'?'on':''}" onclick="tab='sent';detail(${i})">句子 ${r.sentences.length}</button></div>
+ <div class="card">${list.map(x=>`<div class="row" onclick="say('${esc(x.en).replace(/'/g,"\\'")}')">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div>`).join('')||'无'}</div>
+ ${r.thumb?`<img class="prev" src="${r.thumb}">`:''}`}
+function say(t){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').startsWith('en-US'));if(v)u.voice=v;speechSynthesis.speak(u)}
+let S;
+function study({i,items}){const rs=load(),r=rs[i];setHead('学习',1);
+ const pool=[...r.words,...r.sentences,...rs.filter((_,j)=>j!==i).flatMap(x=>[...x.words,...x.sentences])];
+ items=items||[...r.words,...r.sentences].filter(x=>x.zh);
+ if(!items.length){app.innerHTML='<p class="card">这条记录没有可学习的翻译。</p>';return}
+ S={i,items,pool,k:0,wrong:new Set(),firstTry:true};show()}
+function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool.filter(p=>p.type===it.type))||PE.pickWrong(it,S.pool);
+ const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];const s=it.type==='sent'?' s':'';
+ app.innerHTML=`<div class="prog">${it.type==='word'?'单词':'句子'} · ${S.k+1} / ${S.items.length}</div>
+ <div class="en${s}">${esc(it.en)}</div><button class="play" onclick="say(S.items[S.k].en)">🔊</button>
+ ${opts.map(o=>`<button class="opt${s}" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
+ app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b));say(it.en)}
+function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right');m.textContent='👍 答对了！';app.querySelectorAll('.opt').forEach(x=>x.onclick=null);
+  setTimeout(()=>{S.k++;S.k<S.items.length?show():end()},900)}
+ else{b.classList.add('wrong');S.wrong.add(S.k);m.textContent='💪 没关系，再试一次！';say(S.items[S.k].en)}}
+function end(){const n=S.items.length,w=S.wrong.size;setHead('完成',1);
+ app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">🎉</div><div class="en s">完成 ${n} 题</div><div style="font-size:30px">一次答对 ${n-w} · 答错过 ${w}</div></div>
+ ${w?`<button class="big orange" onclick="redo()">再练错题 (${w})</button>`:''}<button class="big" onclick="go('study',{i:S.i})">再学一遍</button><button class="big gray" onclick="go('home')">回首页</button>`}
+function redo(){go('study',{i:S.i,items:[...S.wrong].map(k=>S.items[k])})}
+speechSynthesis.getVoices();home();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
