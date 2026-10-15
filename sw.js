@@ -1,4 +1,4 @@
-const V='pe-v14';const CORE=['./','index.html','logic.js','translate.js','manifest.json','icon.png','words.txt','foreign.txt'];
+const V='pe-v15';const CORE=['./','index.html','logic.js','translate.js','manifest.json','icon.png','words.txt','foreign.txt'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(V).then(c=>c.addAll(CORE)).catch(()=>{}))});
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==V).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
 // network-first for same-origin files; never cache translate API

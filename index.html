@@ -34,7 +34,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v14</div><div id="ed"><div><div style="font-size:24px;color:#555">修改中文意思</div><div class="ew" id="edw"></div><input id="edi" type="text"><div class="eb"><button id="eds" style="background:#1a9b4b">保存</button><button id="edc" style="background:#888">取消</button></div></div></div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v15</div><div id="ed"><div><div style="font-size:24px;color:#555">修改中文意思</div><div class="ew" id="edw"></div><input id="edi" type="text"><div class="eb"><button id="eds" style="background:#1a9b4b">保存</button><button id="edc" style="background:#888">取消</button></div></div></div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">单词王</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -148,9 +148,10 @@ function editZh(en,after){$('#edw').textContent=en;const i=$('#edi');i.value=cur
  const close=()=>{$('#ed').style.display='none'};
  $('#edc').onclick=close;$('#eds').onclick=()=>{const v=i.value.trim();close();if(!v)return;setZh(en,v);after&&after()}}
 function say(t){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').startsWith('en-US'));if(v)u.voice=v;speechSynthesis.speak(u)}
-let S;
+let S;const GW=()=>JSON.parse(localStorage.getItem('pe_gwrong')||'{}');function setGW(g,a){const x=GW();if(a.length)x[g]=a;else delete x[g];localStorage.setItem('pe_gwrong',JSON.stringify(x))}
 function study(o){const{i,g}=o;let items=o.items;const rs=load();const all=Object.values(bank().w);let pool,base,title='学习';
- if(g!=null){const G=groups()[g]||[];title='第'+(g+1)+'组';pool=all;base=G.filter(x=>x.zh&&!isKnown(x.en))}
+ if(g!=null){const G=groups()[g]||[];title='第'+(g+1)+'组';pool=all;base=G.filter(x=>x.zh&&!isKnown(x.en));
+  if(!o.items&&!o.full){const ws=new Set(GW()[g]||[]),wi=base.filter(x=>ws.has(x.en.toLowerCase()));if(wi.length){setHead(title,1);S={o,title,wi};app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">💪</div><div style="font-size:28px">上次答错 ${wi.length} 个</div></div><button class="big orange" onclick="go('study',{g:${g},items:S.wi})">错题再练</button><button class="big green" onclick="go('study',{g:${g},full:1})">全部重练</button><button class="big gray" onclick="go('home')">回到分组</button>`;return}}}
  else{const r=rs[i];pool=[...r.words,...all];base=r.words.filter(x=>x.zh&&!isKnown(x.en))}
  setHead(o.items?title+' · 错题再练':title,1);
  items=(items||base).filter(x=>!isKnown(x.en));
@@ -167,7 +168,7 @@ function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right
  else{b.classList.add('wrong');if(!S.wrong.has(S.k)){S.wrong.add(S.k);addWrong(S.items[S.k])}m.textContent='💪 没关系，再试一次！';say(S.items[S.k].en)}}
 function next(){S.k++;if(S.k<S.items.length)return show();end()}
 function end(){const n=S.items.length,w=S.wrong.size,g=S.o.g;S.wrongItems=[...S.wrong].map(k=>S.items[k]).filter(x=>!isKnown(x.en));
- if(g!=null&&!S.o.items)setGP(g,{r:n-w,n,w});setHead(S.title+' · 完成',1);const ng=g!=null&&g+1<groups().length;
+ if(g!=null&&!S.o.items)setGP(g,{r:n-w,n,w});if(g!=null)setGW(g,S.wrongItems.map(x=>x.en.toLowerCase()));setHead(S.title+' · 完成',1);const ng=g!=null&&g+1<groups().length;
  app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">${w?'💪':'🎉'}</div><div class="en">${n-w} / ${n}</div><div style="font-size:28px">答对 ${n-w} · 答错 ${w}</div></div>
  ${S.wrongItems.length?`<button class="big orange" id="redo" onclick="redo()">错题再练</button>`:''}${ng?`<button class="big green" onclick="go('study',{g:${g+1}})">下一组</button>`:''}<button class="big gray" onclick="go('home')">回到分组</button>`}
 function redo(){go('study',{...S.o,items:S.wrongItems})}
