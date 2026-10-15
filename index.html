@@ -22,11 +22,22 @@ main{padding:16px;max-width:700px;margin:auto}
 .row{padding:10px 0;border-bottom:1px solid #eee}.row .z{color:#1e6fd9}.na{color:#aaa}
 .tabs{display:flex;gap:10px}.tabs button{flex:1;font-size:24px;padding:14px;border-radius:14px;border:2px solid #1e6fd9;background:#fff}.tabs button.on{background:#1e6fd9;color:#fff}
 #busy{position:fixed;inset:0;background:#000a;color:#fff;display:none;align-items:center;justify-content:center;font-size:30px;text-align:center;padding:20px}
+#crop{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:5}
+#cwrap{flex:1;position:relative;overflow:hidden;touch-action:none}
+#cimg{position:absolute;touch-action:none;user-select:none;-webkit-user-select:none}
+#cbox{position:absolute;border:3px solid #ffeb3b;box-shadow:0 0 0 9999px #0009;touch-action:none;cursor:move}
+.h{position:absolute;width:76px;height:76px;touch-action:none;display:flex;align-items:center;justify-content:center}
+.h::after{content:"";width:48px;height:48px;border-radius:24px;background:#ffeb3b;border:4px solid #fff;box-shadow:0 0 6px #000}
+.h.tl{left:-38px;top:-38px}.h.tr{right:-38px;top:-38px}.h.bl{left:-38px;bottom:-38px}.h.br{right:-38px;bottom:-38px}
+#cbar{display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+#cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
 </style></head><body>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
 <main id="app"></main>
 <div id="busy"></div>
+<div id="crop"><div id="cwrap"><canvas id="cimg"></canvas><div id="cbox"><div class="h tl" data-h="tl"></div><div class="h tr" data-h="tr"></div><div class="h bl" data-h="bl"></div><div class="h br" data-h="br"></div></div></div>
+<div id="cbar"><button onclick="cropBack()">重拍</button><button onclick="cropRot()">⟳</button><button onclick="cropDone(1)">全图</button><button style="background:#1a9b4b" onclick="cropDone()">确定</button></div></div>
 <input id="cam" type="file" accept="image/*" capture="environment" hidden>
 <input id="gal" type="file" accept="image/*" hidden>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
@@ -54,18 +65,48 @@ function home(){setHead('拍照学英语');const rs=load();
  (rs.length?'<h2>我的记录</h2>':'<p class="card">拍一页英文，自动整理单词和句子。</p>')+
  rs.map((r,i)=>`<div class="card rec"><div class="info" onclick="go('detail',${i})"><b>${new Date(r.date).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</b><div class="d">单词 ${r.words.length} · 句子 ${r.sentences.length}</div></div><button class="big green" style="width:110px;min-height:64px;margin:0" onclick="go('study',{i:${i}})">学习</button><button class="del" onclick="del(${i})">删</button></div>`).join('')}
 function del(i){if(!confirm('删除这条记录？'))return;const r=load();r.splice(i,1);save(r);home()}
-async function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;
- try{busy('正在识别文字…');const img=await shrink(f);
+let CR=null,lastSrc='cam';
+async function decode(f){try{return await createImageBitmap(f,{imageOrientation:'from-image'})}catch(_){}
+ return new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=()=>no(new Error('图片无法打开'));im.src=URL.createObjectURL(f)})}
+async function onFile(e){lastSrc=e.target.id;const f=e.target.files[0];e.target.value='';if(!f)return;
+ try{busy('请稍候…');const b=await decode(f);const W=b.width||b.naturalWidth,H=b.height||b.naturalHeight,m=4000,s=Math.min(1,m/Math.max(W,H));
+  const c=document.createElement('canvas');c.width=Math.round(W*s);c.height=Math.round(H*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);if(b.close)b.close();
+  busy();openCrop(c)}catch(err){busy();alert('出错了：'+err.message)}}
+function openCrop(c){CR={src:c};$('#crop').style.display='flex';layoutCrop(true)}
+function layoutCrop(reset){const w=$('#cwrap'),c=CR.src,pad=40,cw=w.clientWidth-pad*2,ch=w.clientHeight-pad*2,s=Math.min(cw/c.width,ch/c.height);
+ const dw=c.width*s,dh=c.height*s,cv=$('#cimg');CR.s=s;CR.ox=(w.clientWidth-dw)/2;CR.oy=(w.clientHeight-dh)/2;CR.dw=dw;CR.dh=dh;
+ const k=Math.min(2,devicePixelRatio||1);cv.width=dw*k;cv.height=dh*k;cv.style.width=dw+'px';cv.style.height=dh+'px';cv.style.left=CR.ox+'px';cv.style.top=CR.oy+'px';
+ cv.getContext('2d').drawImage(c,0,0,cv.width,cv.height);
+ if(reset)CR.b={x:dw*.05,y:dh*.05,w:dw*.9,h:dh*.9};drawBox()}
+function drawBox(){const b=CR.b,e=$('#cbox');e.style.left=CR.ox+b.x+'px';e.style.top=CR.oy+b.y+'px';e.style.width=b.w+'px';e.style.height=b.h+'px'}
+(function(){const box=$('#cbox');let d=null;const MIN=60;
+ box.addEventListener('pointerdown',e=>{e.preventDefault();box.setPointerCapture(e.pointerId);d={h:e.target.dataset.h||'move',x:e.clientX,y:e.clientY,b:{...CR.b}}});
+ box.addEventListener('pointermove',e=>{if(!d)return;e.preventDefault();const dx=e.clientX-d.x,dy=e.clientY-d.y,o=d.b,W=CR.dw,H=CR.dh;let x1=o.x,y1=o.y,x2=o.x+o.w,y2=o.y+o.h;
+  if(d.h==='move'){const nx=Math.max(0,Math.min(W-o.w,o.x+dx)),ny=Math.max(0,Math.min(H-o.h,o.y+dy));CR.b={x:nx,y:ny,w:o.w,h:o.h};return drawBox()}
+  if(d.h[1]==='l')x1=Math.max(0,Math.min(x2-MIN,x1+dx));else x2=Math.min(W,Math.max(x1+MIN,x2+dx));
+  if(d.h[0]==='t')y1=Math.max(0,Math.min(y2-MIN,y1+dy));else y2=Math.min(H,Math.max(y1+MIN,y2+dy));
+  CR.b={x:x1,y:y1,w:x2-x1,h:y2-y1};drawBox()});
+ const up=()=>{d=null};box.addEventListener('pointerup',up);box.addEventListener('pointercancel',up);
+ addEventListener('resize',()=>{if(CR&&$('#crop').style.display==='flex'){const b=CR.b,s0=CR.dw;layoutCrop();const r=CR.dw/s0;CR.b={x:b.x*r,y:b.y*r,w:b.w*r,h:b.h*r};drawBox()}})})();
+function closeCrop(){$('#crop').style.display='none'}
+function cropBack(){closeCrop();CR=null;$('#'+lastSrc).click()}
+function cropRot(){const c=CR.src,r=document.createElement('canvas');r.width=c.height;r.height=c.width;const x=r.getContext('2d');x.translate(r.width,0);x.rotate(Math.PI/2);x.drawImage(c,0,0);CR.src=r;layoutCrop(true)}
+function cropRegion(full){const c=CR.src,s=CR.s,b=CR.b;let sx=0,sy=0,sw=c.width,sh=c.height;
+ if(!full){sx=Math.round(b.x/s);sy=Math.round(b.y/s);sw=Math.min(c.width-sx,Math.round(b.w/s));sh=Math.min(c.height-sy,Math.round(b.h/s))}
+ const m=2000,k=Math.min(1,m/Math.max(sw,sh)),o=document.createElement('canvas');o.width=Math.max(1,Math.round(sw*k));o.height=Math.max(1,Math.round(sh*k));
+ o.getContext('2d').drawImage(c,sx,sy,sw,sh,0,0,o.width,o.height);return o}
+function cropDone(full){const img=cropRegion(full);window._lastCrop=img;closeCrop();CR=null;runOCR(img)}
+async function runOCR(img){
+ try{busy('正在识别文字…');
   const res=await Tesseract.recognize(img,'eng',{logger:m=>{if(m.status==='recognizing text')busy('正在识别文字… '+Math.round(m.progress*100)+'%')}});
   const text=res.data.text;const S=PE.sentences(text),WI=PE.wordInfo(text),W=WI.map(w=>w.en);
   if(!S.length&&!W.length){busy();alert('没有找到英文，请再拍清楚一点');return}
   busy('正在翻译…');let tr=[];
   try{tr=await PETranslate([...W,...S])}catch(_){}
-  const rec={date:Date.now(),text,thumb:await thumb(img),words:WI.map((w,i)=>({type:'word',en:w.en,proper:w.proper,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
+  const rec={date:Date.now(),text,thumb:thumb(img),words:WI.map((w,i)=>({type:'word',en:w.en,proper:w.proper,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
   const rs=load();rs.unshift(rec);try{save(rs)}catch(_){rec.thumb='';save(rs)}bank();busy();go('detail',0)
  }catch(err){busy();alert('出错了：'+err.message)}}
-function shrink(f){return new Promise(ok=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const m=2000,s=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c)};im.src=u})}
-function thumb(c){const t=document.createElement('canvas'),s=400/c.width;t.width=400;t.height=c.height*s;t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.6)}
+function thumb(c){const t=document.createElement('canvas'),s=Math.min(1,400/c.width);t.width=Math.round(c.width*s);t.height=Math.round(c.height*s);t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.6)}
 $('#cam').onchange=onFile;$('#gal').onchange=onFile;
 let tab='word';
 function detail(i){const r=load()[i];setHead('学习记录',1);const list=tab==='word'?r.words:r.sentences;
