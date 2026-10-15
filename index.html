@@ -32,7 +32,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v7</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v8</div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -122,7 +122,7 @@ function detail(i){const r=load()[i];setHead('学习记录',1);const list=tab===
  <div class="card">${list.map(x=>rowH(x,`detail(${i})`)).join('')||'无'}</div>
  ${r.thumb?`<img class="prev" src="${r.thumb}">`:''}`}
 const q=s=>esc(s).replace(/'/g,"\\'");
-function rowH(x,re){const kn=x.type==='word'&&isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div>${x.type==='word'?`<button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'不再显示'}</button>`:''}</div>`}
+function rowH(x,re){const kn=x.type==='word'&&isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div>${x.type==='word'?`<button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'隐藏该词'}</button>`:''}</div>`}
 let btab='word';
 function wb(){setHead('词库',1);const b=bank(),wc=WC();const W=Object.values(b.w),Sn=Object.values(b.s);
  const act=W.filter(x=>x.zh&&!isKnown(x.en)),hard=[...act,...Sn.filter(x=>x.zh)].filter(x=>(wc[x.type+':'+x.en.toLowerCase()]||0)>=2);
@@ -143,7 +143,7 @@ function study(o){const{i,bank:bk,hard}=o;let items=o.items;const rs=load();setH
 function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool.filter(p=>p.type===it.type))||PE.pickWrong(it,S.pool);
  const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];const s=it.type==='sent'?' s':'';
  app.innerHTML=`<div class="prog">${S.pass>1?'错题再练 · ':''}${it.type==='word'?'单词':'句子'} · ${S.k+1} / ${S.items.length}</div>
- <div class="en${s}">${esc(it.en)}</div><button class="play" onclick="say(S.items[S.k].en)">🔊</button>${it.type==='word'?`<button class="known" style="display:block;margin:6px auto" onclick="setKnown(S.items[S.k].en,true);next()">不再显示</button>`:''}
+ ${it.type==='word'?`<div style="display:flex;align-items:center;justify-content:center;gap:12px"><div class="en${s}" style="margin:16px 0">${esc(it.en)}</div><button class="known" style="flex:none" onclick="setKnown(S.items[S.k].en,true);next()">隐藏该词</button></div>`:`<div class="en${s}">${esc(it.en)}</div>`}<button class="play" onclick="say(S.items[S.k].en)">🔊</button>
  ${opts.map(o=>`<button class="opt${s}" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b));say(it.en)}
 function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right');m.textContent='👍 答对了！';app.querySelectorAll('.opt').forEach(x=>x.onclick=null);
