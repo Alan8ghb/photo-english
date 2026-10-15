@@ -32,7 +32,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v11</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v12</div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">单词王</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -143,7 +143,7 @@ function study(o){const{i,g}=o;let items=o.items;const rs=load();const all=Objec
 function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool);
  const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];
  app.innerHTML=`<div class="prog">${S.o.items?'错题再练 · ':''}${S.k+1} / ${S.items.length}</div>
- <div style="display:flex;align-items:center;justify-content:center;gap:12px"><div class="en" style="margin:16px 0">${esc(it.en)}</div><button class="known" style="flex:none" onclick="setKnown(S.items[S.k].en,true);next()">隐藏该词</button></div><button class="play" onclick="say(S.items[S.k].en)">🔊</button>
+ <div class="en">${esc(it.en)}</div><div style="position:relative;display:flex;justify-content:center;align-items:center"><button class="play" style="margin:10px 0" onclick="say(S.items[S.k].en)">🔊</button><button class="known" style="position:absolute;left:calc(50% + 76px);top:50%;transform:translateY(-50%);line-height:1.2;padding:10px 14px" onclick="setKnown(S.items[S.k].en,true);next()">隐藏<br>该词</button></div>
  ${opts.map(o=>`<button class="opt" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b));say(it.en)}
 function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right');m.textContent='👍 答对了！';app.querySelectorAll('.opt').forEach(x=>x.onclick=null);
