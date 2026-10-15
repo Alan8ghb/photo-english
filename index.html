@@ -32,7 +32,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v9</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v10</div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -68,9 +68,9 @@ function busy(t){const b=$('#busy');b.style.display=t?'flex':'none';b.textConten
 function setHead(t,back){$('#title').textContent=t;$('#back').style.display=back?'':'none'}
 function go(v,a){speechSynthesis.cancel();({home,recs,detail,study}[v])(a);scrollTo(0,0)}
 function home(){setHead('拍照学英语');const G=groups(),P=GP(),rs=load();
- app.innerHTML=`<button class="big" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" onclick="$('#gal').click()">🖼️ 从相册选</button>`+
+ app.innerHTML=`<div style="display:flex;gap:12px"><button class="big" style="flex:1" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" style="flex:1" onclick="$('#gal').click()">🖼️ 相册</button></div>`+
  (G.length?'<h2>单词分组</h2>':'<p class="card">拍一页英文，自动整理单词。</p>')+
- G.map((g,i)=>{const p=P[i],act=g.filter(x=>x.zh&&!isKnown(x.en)).length;return `<button class="big grp" onclick="go('study',{g:${i}})"><span>第${i+1}组 · ${act<g.length?act+'/':''}${g.length}词</span><span class="gm">${p?(p.w?p.r+'/'+p.n:'✓ '+p.r+'/'+p.n):''}</span></button>`}).join('')+
+ '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'+G.map((g,i)=>{const p=P[i],ok=p&&!p.w;return `<button onclick="go('study',{g:${i}})" style="min-height:76px;font-size:34px;font-weight:bold;border:none;border-radius:16px;color:#fff;background:${ok?'#1a9b4b':p?'#e07b00':'#1e6fd9'}">${i+1}</button>`}).join('')+'</div>'+
  (rs.length?`<button class="big gray" style="min-height:60px;font-size:24px" onclick="go('recs')">照片记录 (${rs.length})</button>`:'')}
 function recs(){setHead('照片记录',1);const rs=load();
  app.innerHTML=rs.map((r,i)=>`<div class="card rec"><div class="info" onclick="go('detail',${i})"><b>${new Date(r.date).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</b><div class="d">单词 ${r.words.length}</div></div><button class="big green" style="width:110px;min-height:64px;margin:0" onclick="go('study',{i:${i}})">学习</button><button class="del" onclick="del(${i})">删</button></div>`).join('')||'<p class="card">无</p>'}
