@@ -20,7 +20,7 @@ main{padding:16px;max-width:700px;margin:auto}
 .opt.s{font-size:24px}.opt.right{background:#1a9b4b;color:#fff;border-color:#1a9b4b}.opt.wrong{background:#fdd;border-color:#d33}
 .msg{text-align:center;font-size:30px;min-height:44px}.prog{text-align:center;color:#666}
 .row{padding:10px 0;border-bottom:1px solid #eee}.row .z{color:#1e6fd9}.na{color:#aaa}
-.tabs{display:flex;gap:10px}.tabs button{flex:1;font-size:24px;padding:14px;border-radius:14px;border:2px solid #1e6fd9;background:#fff}.tabs button.on{background:#1e6fd9;color:#fff}
+.grp{display:flex;justify-content:space-between;align-items:center;padding:0 22px;text-align:left}.gm{font-size:22px;opacity:.9}.tabs{display:flex;gap:10px}.tabs button{flex:1;font-size:24px;padding:14px;border-radius:14px;border:2px solid #1e6fd9;background:#fff}.tabs button.on{background:#1e6fd9;color:#fff}
 #busy{position:fixed;inset:0;z-index:60;background:#000a;color:#fff;display:none;align-items:center;justify-content:center;font-size:30px;text-align:center;padding:20px}
 #crop{position:fixed;left:0;top:0;right:0;width:100vw;height:100vh;height:100dvh;background:#000;display:none;flex-direction:column;z-index:50;overflow:hidden}
 #cwrap{flex:1 1 auto;min-height:0;min-width:0;position:relative;overflow:hidden;touch-action:none}
@@ -32,7 +32,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v8</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v9</div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -51,20 +51,30 @@ const isKnown=en=>K().has(en.toLowerCase());
 function setKnown(en,on){const k=K();on?k.add(en.toLowerCase()):k.delete(en.toLowerCase());localStorage.setItem('pe_known',JSON.stringify([...k]))}
 const WC=()=>JSON.parse(localStorage.getItem('pe_wrong')||'{}');
 function addWrong(it){const w=WC(),k=it.type+':'+it.en.toLowerCase();w[k]=(w[k]||0)+1;localStorage.setItem('pe_wrong',JSON.stringify(w))}
-// global bank: persisted, merged from all records (backfill on load)
-function bank(){const b=JSON.parse(localStorage.getItem('pe_bank')||'{"w":{},"s":{}}');let ch=0;
- for(const r of load()){for(const[x,key]of[[r.words,'w'],[r.sentences,'s']])for(const it of x){const k=it.en.toLowerCase(),o=b[key][k];
-  if(!o){b[key][k]={type:it.type,en:it.en,zh:it.zh,proper:!!it.proper,date:r.date};ch=1}else if(!o.zh&&it.zh){o.zh=it.zh;ch=1}}}
+// global word bank: persisted, ordered by entry seq (backfill: record date, then original word order)
+function bank(){const b=JSON.parse(localStorage.getItem('pe_bank')||'{"w":{}}');if(!b.w)b.w={};delete b.s;let ch=0;
+ let mx=Math.max(0,...Object.values(b.w).map(x=>x.seq||0));
+ const rs=load().map((r,ri)=>({r,ri})).sort((a,c)=>a.r.date-c.r.date||c.ri-a.ri);const ord={};let n=0;
+ for(const{r}of rs)(r.words||[]).forEach(it=>{const k=it.en.toLowerCase();if(!(k in ord))ord[k]=n++;const o=b.w[k];
+  if(!o){b.w[k]={type:'word',en:it.en,zh:it.zh,proper:!!it.proper,date:r.date};ch=1}else if(!o.zh&&it.zh){o.zh=it.zh;ch=1}});
+ const ns=Object.entries(b.w).filter(([k,x])=>!x.seq).sort(([ka,a],[kc,c])=>(a.date||0)-(c.date||0)||(ord[ka]??1e9)-(ord[kc]??1e9));
+ for(const[,x]of ns){x.seq=++mx;ch=1}
  if(ch)try{localStorage.setItem('pe_bank',JSON.stringify(b))}catch(_){}return b}
+const GS=20;function groups(){return Object.values(bank().w).sort((a,c)=>a.seq-c.seq).reduce((g,x,i)=>{(g[i/GS|0]=g[i/GS|0]||[]).push(x);return g},[])}
+const GP=()=>JSON.parse(localStorage.getItem('pe_gprog')||'{}');
+function setGP(g,v){const p=GP();p[g]=v;localStorage.setItem('pe_gprog',JSON.stringify(p))}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function busy(t){const b=$('#busy');b.style.display=t?'flex':'none';b.textContent=t||''}
 function setHead(t,back){$('#title').textContent=t;$('#back').style.display=back?'':'none'}
-function go(v,a){speechSynthesis.cancel();({home,detail,study,wb}[v])(a);scrollTo(0,0)}
-function home(){setHead('拍照学英语');const rs=load();
- app.innerHTML=`<button class="big" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" onclick="$('#gal').click()">🖼️ 从相册选</button><button class="big orange" onclick="go('wb')">📚 词库</button>`+
- (rs.length?'<h2>我的记录</h2>':'<p class="card">拍一页英文，自动整理单词和句子。</p>')+
- rs.map((r,i)=>`<div class="card rec"><div class="info" onclick="go('detail',${i})"><b>${new Date(r.date).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</b><div class="d">单词 ${r.words.length} · 句子 ${r.sentences.length}</div></div><button class="big green" style="width:110px;min-height:64px;margin:0" onclick="go('study',{i:${i}})">学习</button><button class="del" onclick="del(${i})">删</button></div>`).join('')}
-function del(i){if(!confirm('删除这条记录？'))return;const r=load();r.splice(i,1);save(r);home()}
+function go(v,a){speechSynthesis.cancel();({home,recs,detail,study}[v])(a);scrollTo(0,0)}
+function home(){setHead('拍照学英语');const G=groups(),P=GP(),rs=load();
+ app.innerHTML=`<button class="big" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" onclick="$('#gal').click()">🖼️ 从相册选</button>`+
+ (G.length?'<h2>单词分组</h2>':'<p class="card">拍一页英文，自动整理单词。</p>')+
+ G.map((g,i)=>{const p=P[i],act=g.filter(x=>x.zh&&!isKnown(x.en)).length;return `<button class="big grp" onclick="go('study',{g:${i}})"><span>第${i+1}组 · ${act<g.length?act+'/':''}${g.length}词</span><span class="gm">${p?(p.w?p.r+'/'+p.n:'✓ '+p.r+'/'+p.n):''}</span></button>`}).join('')+
+ (rs.length?`<button class="big gray" style="min-height:60px;font-size:24px" onclick="go('recs')">照片记录 (${rs.length})</button>`:'')}
+function recs(){setHead('照片记录',1);const rs=load();
+ app.innerHTML=rs.map((r,i)=>`<div class="card rec"><div class="info" onclick="go('detail',${i})"><b>${new Date(r.date).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</b><div class="d">单词 ${r.words.length}</div></div><button class="big green" style="width:110px;min-height:64px;margin:0" onclick="go('study',{i:${i}})">学习</button><button class="del" onclick="del(${i})">删</button></div>`).join('')||'<p class="card">无</p>'}
+function del(i){if(!confirm('删除这条记录？'))return;const r=load();r.splice(i,1);save(r);recs()}
 let CR=null,lastSrc='cam';
 async function decode(f){try{return await createImageBitmap(f,{imageOrientation:'from-image'})}catch(_){}
  return new Promise((ok,no)=>{const im=new Image();im.onload=()=>ok(im);im.onerror=()=>no(new Error('图片无法打开'));im.src=URL.createObjectURL(f)})}
@@ -106,57 +116,45 @@ function smallCanvas(c){const k=Math.min(1,1600/Math.max(c.width,c.height)),o=do
 async function runOCR(img){
  try{busy('正在识别文字…');await loadDict();const w=await ocrWorker();
   const r=await PE.autoOCR(img,{rotate:rotCanvas,small:smallCanvas,progress:t=>{OW_P=t;busy(t)},recognize:async(i)=>(await w.recognize(i)).data});
-  OW_P='';img=r.img;const text=r.text;const S=PE.sentences(text),WI=PE.wordInfo(text),W=WI.map(w=>w.en);
-  if(!S.length&&!W.length){busy();alert('没有找到清楚的英文，请靠近一点、对准文字再拍（也可以用 ⟳ 旋转）');return}
+  OW_P='';img=r.img;const text=r.text;const WI=PE.wordInfo(text),W=WI.map(w=>w.en);
+  if(!W.length){busy();alert('没有找到清楚的英文，请靠近一点、对准文字再拍（也可以用 ⟳ 旋转）');return}
   busy('正在翻译…');let tr=[];
-  try{tr=await PETranslate([...W,...S])}catch(_){}
-  const rec={date:Date.now(),text,thumb:thumb(img),words:WI.map((w,i)=>({type:'word',en:w.en,proper:w.proper,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
+  try{tr=await PETranslate(W)}catch(_){}
+  const rec={date:Date.now(),text,thumb:thumb(img),words:WI.map((w,i)=>({type:'word',en:w.en,proper:w.proper,zh:tr[i]||null}))};
   const rs=load();rs.unshift(rec);try{save(rs)}catch(_){rec.thumb='';save(rs)}bank();busy();go('detail',0)
  }catch(err){OW_P='';busy();alert('出错了：'+err.message)}}
 function thumb(c){const t=document.createElement('canvas'),s=Math.min(1,400/c.width);t.width=Math.round(c.width*s);t.height=Math.round(c.height*s);t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.6)}
 $('#cam').onchange=onFile;$('#gal').onchange=onFile;
-let tab='word';
-function detail(i){const r=load()[i];setHead('学习记录',1);const list=tab==='word'?r.words:r.sentences;
+function detail(i){const r=load()[i];setHead('学习记录',1);
  app.innerHTML=`<button class="big green" onclick="go('study',{i:${i}})">▶ 开始学习</button>
- <div class="tabs"><button class="${tab==='word'?'on':''}" onclick="tab='word';detail(${i})">单词 ${r.words.length}</button><button class="${tab==='sent'?'on':''}" onclick="tab='sent';detail(${i})">句子 ${r.sentences.length}</button></div>
- <div class="card">${list.map(x=>rowH(x,`detail(${i})`)).join('')||'无'}</div>
+ <div class="card">${r.words.map(x=>rowH(x,`detail(${i})`)).join('')||'无'}</div>
  ${r.thumb?`<img class="prev" src="${r.thumb}">`:''}`}
 const q=s=>esc(s).replace(/'/g,"\\'");
-function rowH(x,re){const kn=x.type==='word'&&isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div>${x.type==='word'?`<button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'隐藏该词'}</button>`:''}</div>`}
-let btab='word';
-function wb(){setHead('词库',1);const b=bank(),wc=WC();const W=Object.values(b.w),Sn=Object.values(b.s);
- const act=W.filter(x=>x.zh&&!isKnown(x.en)),hard=[...act,...Sn.filter(x=>x.zh)].filter(x=>(wc[x.type+':'+x.en.toLowerCase()]||0)>=2);
- const list=(btab==='word'?W:Sn).sort((a,b)=>b.date-a.date);
- app.innerHTML=`<button class="big green" onclick="go('study',{bank:1})">▶ 练习 (${act.length})</button>
- ${hard.length?`<button class="big orange" onclick="go('study',{bank:1,hard:1})">练错得多的 (${hard.length})</button>`:''}
- <div class="tabs"><button class="${btab==='word'?'on':''}" onclick="btab='word';wb()">单词 ${W.length}</button><button class="${btab==='sent'?'on':''}" onclick="btab='sent';wb()">句子 ${Sn.length}</button></div>
- <div class="card">${list.map(x=>rowH(x,'wb()')+`<div class="d" style="font-size:18px;color:#999">${new Date(x.date).toLocaleDateString('zh-CN')}${(wc[x.type+':'+x.en.toLowerCase()]||0)?' · 错 '+wc[x.type+':'+x.en.toLowerCase()]:''}</div>`).join('')||'无'}</div>`}
+function rowH(x,re){const kn=isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div><button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'隐藏该词'}</button></div>`}
 function say(t){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').startsWith('en-US'));if(v)u.voice=v;speechSynthesis.speak(u)}
 let S;
-function study(o){const{i,bank:bk,hard}=o;let items=o.items;const rs=load();setHead('学习',1);
- const b=bank(),all=[...Object.values(b.w),...Object.values(b.s)];let pool,base;
- if(bk){pool=all;const wc=WC();base=all.filter(x=>x.zh&&!(x.type==='word'&&isKnown(x.en)));if(!hard)base=base.filter(x=>x.type==='word');else base=base.filter(x=>(wc[x.type+':'+x.en.toLowerCase()]||0)>=2)}
- else{const r=rs[i];pool=[...r.words,...r.sentences,...all];base=[...r.words.filter(x=>!isKnown(x.en)),...r.sentences].filter(x=>x.zh)}
- items=items||base;
- if(!items.length){app.innerHTML='<p class="card">没有可学习的内容。</p>';return}
- S={o,items,pool,k:0,wrong:new Set(),pass:1};show()}
-function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool.filter(p=>p.type===it.type))||PE.pickWrong(it,S.pool);
- const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];const s=it.type==='sent'?' s':'';
- app.innerHTML=`<div class="prog">${S.pass>1?'错题再练 · ':''}${it.type==='word'?'单词':'句子'} · ${S.k+1} / ${S.items.length}</div>
- ${it.type==='word'?`<div style="display:flex;align-items:center;justify-content:center;gap:12px"><div class="en${s}" style="margin:16px 0">${esc(it.en)}</div><button class="known" style="flex:none" onclick="setKnown(S.items[S.k].en,true);next()">隐藏该词</button></div>`:`<div class="en${s}">${esc(it.en)}</div>`}<button class="play" onclick="say(S.items[S.k].en)">🔊</button>
- ${opts.map(o=>`<button class="opt${s}" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
+function study(o){const{i,g}=o;let items=o.items;const rs=load();const all=Object.values(bank().w);let pool,base,title='学习';
+ if(g!=null){const G=groups()[g]||[];title='第'+(g+1)+'组';pool=all;base=G.filter(x=>x.zh&&!isKnown(x.en))}
+ else{const r=rs[i];pool=[...r.words,...all];base=r.words.filter(x=>x.zh&&!isKnown(x.en))}
+ setHead(o.items?title+' · 错题再练':title,1);
+ items=(items||base).filter(x=>!isKnown(x.en));
+ if(!items.length){app.innerHTML='<p class="card">没有可学习的单词。</p><button class="big gray" onclick="go(\'home\')">回到分组</button>';return}
+ S={o,items,pool,k:0,wrong:new Set(),title};show()}
+function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool);
+ const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];
+ app.innerHTML=`<div class="prog">${S.o.items?'错题再练 · ':''}${S.k+1} / ${S.items.length}</div>
+ <div style="display:flex;align-items:center;justify-content:center;gap:12px"><div class="en" style="margin:16px 0">${esc(it.en)}</div><button class="known" style="flex:none" onclick="setKnown(S.items[S.k].en,true);next()">隐藏该词</button></div><button class="play" onclick="say(S.items[S.k].en)">🔊</button>
+ ${opts.map(o=>`<button class="opt" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b));say(it.en)}
 function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right');m.textContent='👍 答对了！';app.querySelectorAll('.opt').forEach(x=>x.onclick=null);
   setTimeout(next,900)}
  else{b.classList.add('wrong');if(!S.wrong.has(S.k)){S.wrong.add(S.k);addWrong(S.items[S.k])}m.textContent='💪 没关系，再试一次！';say(S.items[S.k].en)}}
-function next(){S.k++;if(S.k<S.items.length)return show();
- if(S.pass===1){S.r1={n:S.items.length,w:S.wrong.size};const wi=[...S.wrong].map(k=>S.items[k]).filter(x=>x.type!=='word'||!isKnown(x.en));
-  if(wi.length){S.wrongItems1=wi;S.items=wi;S.k=0;S.wrong=new Set();S.pass=2;app.innerHTML='<div class="card en s" style="text-align:center">再练一遍错题 ('+wi.length+')</div>';setTimeout(show,1200);return}}
- end()}
-function end(){const n=S.r1.n,w=S.r1.w;setHead('完成',1);
- app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">🎉</div><div class="en s">完成 ${n} 题</div><div style="font-size:30px">一次答对 ${n-w} · 答错过 ${w}</div></div>
- ${w?`<button class="big orange" onclick="redo()">再练错题 (${w})</button>`:''}<button class="big" onclick="go('study',S.o)">再学一遍</button><button class="big gray" onclick="go('home')">回首页</button>`}
-function redo(){go('study',{...S.o,items:S.wrongItems1})}
+function next(){S.k++;if(S.k<S.items.length)return show();end()}
+function end(){const n=S.items.length,w=S.wrong.size,g=S.o.g;S.wrongItems=[...S.wrong].map(k=>S.items[k]).filter(x=>!isKnown(x.en));
+ if(g!=null&&!S.o.items)setGP(g,{r:n-w,n,w});setHead(S.title+' · 完成',1);const ng=g!=null&&g+1<groups().length;
+ app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">${w?'💪':'🎉'}</div><div class="en">${n-w} / ${n}</div><div style="font-size:28px">答对 ${n-w} · 答错 ${w}</div></div>
+ ${S.wrongItems.length?`<button class="big orange" id="redo" onclick="redo()">错题再练</button>`:''}${ng?`<button class="big green" onclick="go('study',{g:${g+1}})">下一组</button>`:''}<button class="big gray" onclick="go('home')">回到分组</button>`}
+function redo(){go('study',{...S.o,items:S.wrongItems})}
 speechSynthesis.getVoices();bank();home();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').then(r=>r.update());
 </script></body></html>
