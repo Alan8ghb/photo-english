@@ -11,6 +11,8 @@ main{padding:16px;max-width:700px;margin:auto}
 .green{background:#1a9b4b}.gray{background:#888}.orange{background:#e07b00}
 .card{background:#fff;border-radius:18px;padding:18px;margin:12px 0;box-shadow:0 2px 8px #0001}
 .rec{display:flex;align-items:center;gap:10px}.rec .info{flex:1}.rec .d{font-size:20px;color:#666}
+.known{background:#f2f2f2;color:#555;border:2px solid #ccc;border-radius:14px;font-size:22px;padding:12px 16px;min-height:56px}.known.on{background:#e8f5e9;border-color:#1a9b4b;color:#1a9b4b}
+.rowf{display:flex;align-items:center;gap:10px}.rowf>div{flex:1}
 .del{background:#eee;border:none;border-radius:12px;font-size:20px;padding:12px}
 .en{font-size:40px;font-weight:bold;text-align:center;margin:16px 0;word-break:break-word}.en.s{font-size:30px}
 .play{display:block;margin:10px auto;width:120px;height:120px;border-radius:60px;border:none;background:#ffb300;font-size:56px}
@@ -33,24 +35,34 @@ img.prev{max-width:100%;border-radius:12px}
 const $=s=>document.querySelector(s),app=$('#app');
 const load=()=>JSON.parse(localStorage.getItem('pe_records')||'[]');
 const save=r=>localStorage.setItem('pe_records',JSON.stringify(r));
+const K=()=>new Set(JSON.parse(localStorage.getItem('pe_known')||'[]'));
+const isKnown=en=>K().has(en.toLowerCase());
+function setKnown(en,on){const k=K();on?k.add(en.toLowerCase()):k.delete(en.toLowerCase());localStorage.setItem('pe_known',JSON.stringify([...k]))}
+const WC=()=>JSON.parse(localStorage.getItem('pe_wrong')||'{}');
+function addWrong(it){const w=WC(),k=it.type+':'+it.en.toLowerCase();w[k]=(w[k]||0)+1;localStorage.setItem('pe_wrong',JSON.stringify(w))}
+// global bank: persisted, merged from all records (backfill on load)
+function bank(){const b=JSON.parse(localStorage.getItem('pe_bank')||'{"w":{},"s":{}}');let ch=0;
+ for(const r of load()){for(const[x,key]of[[r.words,'w'],[r.sentences,'s']])for(const it of x){const k=it.en.toLowerCase(),o=b[key][k];
+  if(!o){b[key][k]={type:it.type,en:it.en,zh:it.zh,proper:!!it.proper,date:r.date};ch=1}else if(!o.zh&&it.zh){o.zh=it.zh;ch=1}}}
+ if(ch)try{localStorage.setItem('pe_bank',JSON.stringify(b))}catch(_){}return b}
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function busy(t){const b=$('#busy');b.style.display=t?'flex':'none';b.textContent=t||''}
 function setHead(t,back){$('#title').textContent=t;$('#back').style.display=back?'':'none'}
-function go(v,a){speechSynthesis.cancel();({home,detail,study}[v])(a);scrollTo(0,0)}
+function go(v,a){speechSynthesis.cancel();({home,detail,study,wb}[v])(a);scrollTo(0,0)}
 function home(){setHead('拍照学英语');const rs=load();
- app.innerHTML=`<button class="big" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" onclick="$('#gal').click()">🖼️ 从相册选</button>`+
+ app.innerHTML=`<button class="big" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" onclick="$('#gal').click()">🖼️ 从相册选</button><button class="big orange" onclick="go('wb')">📚 词库</button>`+
  (rs.length?'<h2>我的记录</h2>':'<p class="card">拍一页英文，自动整理单词和句子。</p>')+
  rs.map((r,i)=>`<div class="card rec"><div class="info" onclick="go('detail',${i})"><b>${new Date(r.date).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})}</b><div class="d">单词 ${r.words.length} · 句子 ${r.sentences.length}</div></div><button class="big green" style="width:110px;min-height:64px;margin:0" onclick="go('study',{i:${i}})">学习</button><button class="del" onclick="del(${i})">删</button></div>`).join('')}
 function del(i){if(!confirm('删除这条记录？'))return;const r=load();r.splice(i,1);save(r);home()}
 async function onFile(e){const f=e.target.files[0];e.target.value='';if(!f)return;
  try{busy('正在识别文字…');const img=await shrink(f);
   const res=await Tesseract.recognize(img,'eng',{logger:m=>{if(m.status==='recognizing text')busy('正在识别文字… '+Math.round(m.progress*100)+'%')}});
-  const text=res.data.text;const S=PE.sentences(text),W=PE.words(text);
+  const text=res.data.text;const S=PE.sentences(text),WI=PE.wordInfo(text),W=WI.map(w=>w.en);
   if(!S.length&&!W.length){busy();alert('没有找到英文，请再拍清楚一点');return}
   busy('正在翻译…');let tr=[];
   try{tr=await PETranslate([...W,...S])}catch(_){}
-  const rec={date:Date.now(),text,thumb:await thumb(img),words:W.map((en,i)=>({type:'word',en,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
-  const rs=load();rs.unshift(rec);try{save(rs)}catch(_){rec.thumb='';save(rs)}busy();go('detail',0)
+  const rec={date:Date.now(),text,thumb:await thumb(img),words:WI.map((w,i)=>({type:'word',en:w.en,proper:w.proper,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
+  const rs=load();rs.unshift(rec);try{save(rs)}catch(_){rec.thumb='';save(rs)}bank();busy();go('detail',0)
  }catch(err){busy();alert('出错了：'+err.message)}}
 function shrink(f){return new Promise(ok=>{const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{const m=2000,s=Math.min(1,m/Math.max(im.width,im.height)),c=document.createElement('canvas');c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);ok(c)};im.src=u})}
 function thumb(c){const t=document.createElement('canvas'),s=400/c.width;t.width=400;t.height=c.height*s;t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.6)}
@@ -59,28 +71,44 @@ let tab='word';
 function detail(i){const r=load()[i];setHead('学习记录',1);const list=tab==='word'?r.words:r.sentences;
  app.innerHTML=`<button class="big green" onclick="go('study',{i:${i}})">▶ 开始学习</button>
  <div class="tabs"><button class="${tab==='word'?'on':''}" onclick="tab='word';detail(${i})">单词 ${r.words.length}</button><button class="${tab==='sent'?'on':''}" onclick="tab='sent';detail(${i})">句子 ${r.sentences.length}</button></div>
- <div class="card">${list.map(x=>`<div class="row" onclick="say('${esc(x.en).replace(/'/g,"\\'")}')">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div>`).join('')||'无'}</div>
+ <div class="card">${list.map(x=>rowH(x,`detail(${i})`)).join('')||'无'}</div>
  ${r.thumb?`<img class="prev" src="${r.thumb}">`:''}`}
+const q=s=>esc(s).replace(/'/g,"\\'");
+function rowH(x,re){const kn=x.type==='word'&&isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div>${x.type==='word'?`<button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'不再显示'}</button>`:''}</div>`}
+let btab='word';
+function wb(){setHead('词库',1);const b=bank(),wc=WC();const W=Object.values(b.w),Sn=Object.values(b.s);
+ const act=W.filter(x=>x.zh&&!isKnown(x.en)),hard=[...act,...Sn.filter(x=>x.zh)].filter(x=>(wc[x.type+':'+x.en.toLowerCase()]||0)>=2);
+ const list=(btab==='word'?W:Sn).sort((a,b)=>b.date-a.date);
+ app.innerHTML=`<button class="big green" onclick="go('study',{bank:1})">▶ 练习 (${act.length})</button>
+ ${hard.length?`<button class="big orange" onclick="go('study',{bank:1,hard:1})">练错得多的 (${hard.length})</button>`:''}
+ <div class="tabs"><button class="${btab==='word'?'on':''}" onclick="btab='word';wb()">单词 ${W.length}</button><button class="${btab==='sent'?'on':''}" onclick="btab='sent';wb()">句子 ${Sn.length}</button></div>
+ <div class="card">${list.map(x=>rowH(x,'wb()')+`<div class="d" style="font-size:18px;color:#999">${new Date(x.date).toLocaleDateString('zh-CN')}${(wc[x.type+':'+x.en.toLowerCase()]||0)?' · 错 '+wc[x.type+':'+x.en.toLowerCase()]:''}</div>`).join('')||'无'}</div>`}
 function say(t){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').startsWith('en-US'));if(v)u.voice=v;speechSynthesis.speak(u)}
 let S;
-function study({i,items}){const rs=load(),r=rs[i];setHead('学习',1);
- const pool=[...r.words,...r.sentences,...rs.filter((_,j)=>j!==i).flatMap(x=>[...x.words,...x.sentences])];
- items=items||[...r.words,...r.sentences].filter(x=>x.zh);
- if(!items.length){app.innerHTML='<p class="card">这条记录没有可学习的翻译。</p>';return}
- S={i,items,pool,k:0,wrong:new Set(),firstTry:true};show()}
+function study(o){const{i,bank:bk,hard}=o;let items=o.items;const rs=load();setHead('学习',1);
+ const b=bank(),all=[...Object.values(b.w),...Object.values(b.s)];let pool,base;
+ if(bk){pool=all;const wc=WC();base=all.filter(x=>x.zh&&!(x.type==='word'&&isKnown(x.en)));if(!hard)base=base.filter(x=>x.type==='word');else base=base.filter(x=>(wc[x.type+':'+x.en.toLowerCase()]||0)>=2)}
+ else{const r=rs[i];pool=[...r.words,...r.sentences,...all];base=[...r.words.filter(x=>!isKnown(x.en)),...r.sentences].filter(x=>x.zh)}
+ items=items||base;
+ if(!items.length){app.innerHTML='<p class="card">没有可学习的内容。</p>';return}
+ S={o,items,pool,k:0,wrong:new Set(),pass:1};show()}
 function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool.filter(p=>p.type===it.type))||PE.pickWrong(it,S.pool);
  const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];const s=it.type==='sent'?' s':'';
- app.innerHTML=`<div class="prog">${it.type==='word'?'单词':'句子'} · ${S.k+1} / ${S.items.length}</div>
- <div class="en${s}">${esc(it.en)}</div><button class="play" onclick="say(S.items[S.k].en)">🔊</button>
+ app.innerHTML=`<div class="prog">${S.pass>1?'错题再练 · ':''}${it.type==='word'?'单词':'句子'} · ${S.k+1} / ${S.items.length}</div>
+ <div class="en${s}">${esc(it.en)}</div><button class="play" onclick="say(S.items[S.k].en)">🔊</button>${it.type==='word'?`<button class="known" style="display:block;margin:6px auto" onclick="setKnown(S.items[S.k].en,true);next()">不再显示</button>`:''}
  ${opts.map(o=>`<button class="opt${s}" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
  app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b));say(it.en)}
 function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right');m.textContent='👍 答对了！';app.querySelectorAll('.opt').forEach(x=>x.onclick=null);
-  setTimeout(()=>{S.k++;S.k<S.items.length?show():end()},900)}
- else{b.classList.add('wrong');S.wrong.add(S.k);m.textContent='💪 没关系，再试一次！';say(S.items[S.k].en)}}
-function end(){const n=S.items.length,w=S.wrong.size;setHead('完成',1);
+  setTimeout(next,900)}
+ else{b.classList.add('wrong');if(!S.wrong.has(S.k)){S.wrong.add(S.k);addWrong(S.items[S.k])}m.textContent='💪 没关系，再试一次！';say(S.items[S.k].en)}}
+function next(){S.k++;if(S.k<S.items.length)return show();
+ if(S.pass===1){S.r1={n:S.items.length,w:S.wrong.size};const wi=[...S.wrong].map(k=>S.items[k]).filter(x=>x.type!=='word'||!isKnown(x.en));
+  if(wi.length){S.wrongItems1=wi;S.items=wi;S.k=0;S.wrong=new Set();S.pass=2;app.innerHTML='<div class="card en s" style="text-align:center">再练一遍错题 ('+wi.length+')</div>';setTimeout(show,1200);return}}
+ end()}
+function end(){const n=S.r1.n,w=S.r1.w;setHead('完成',1);
  app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">🎉</div><div class="en s">完成 ${n} 题</div><div style="font-size:30px">一次答对 ${n-w} · 答错过 ${w}</div></div>
- ${w?`<button class="big orange" onclick="redo()">再练错题 (${w})</button>`:''}<button class="big" onclick="go('study',{i:S.i})">再学一遍</button><button class="big gray" onclick="go('home')">回首页</button>`}
-function redo(){go('study',{i:S.i,items:[...S.wrong].map(k=>S.items[k])})}
-speechSynthesis.getVoices();home();
-if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+ ${w?`<button class="big orange" onclick="redo()">再练错题 (${w})</button>`:''}<button class="big" onclick="go('study',S.o)">再学一遍</button><button class="big gray" onclick="go('home')">回首页</button>`}
+function redo(){go('study',{...S.o,items:S.wrongItems1})}
+speechSynthesis.getVoices();bank();home();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').then(r=>r.update());
 </script></body></html>
