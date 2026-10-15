@@ -2,17 +2,20 @@
 const STOP=new Set('the a an and or but of to in on at for with by from is are was were be been am it its this that these those as he she we they you i me my your his her our their them us not no do does did so if then than too very can will just'.split(' '));
 function clean(t){return t.replace(/[‘’]/g,"'").replace(/[“”]/g,'"').replace(/-\n(\w)/g,'$1').replace(/\s*\n\s*/g,' ').replace(/[|_~^`]+/g,' ').replace(/\s+/g,' ').trim();}
 function sentences(text){const parts=text.split(/\n\s*\n/).flatMap(b=>clean(b).match(/[^.!?]+[.!?]+["')]*|[^.!?]+$/g)||[]);const seen=new Set(),out=[];
- for(let s of parts){s=s.trim();const w=s.match(/[A-Za-z]+/g)||[];if(w.length<3)continue;const letters=(s.match(/[A-Za-z]/g)||[]).length;if(letters/s.length<0.6)continue;const k=s.toLowerCase();if(!seen.has(k)){seen.add(k);out.push(s);}}return out;}
+ for(let s of parts){s=s.trim();const w=s.match(/[A-Za-z]+/g)||[];if(w.length<3)continue;const letters=(s.match(/[A-Za-z]/g)||[]).length;if(letters/s.length<0.6)continue;if(!englishSentence(s))continue;const k=s.toLowerCase();if(!seen.has(k)){seen.add(k);out.push(s);}}return out;}
 // wordInfo: keeps original case. Dedupe case-insensitively; lowercase form wins if ever seen lowercase.
-function wordInfo(text,skipStop=true){const m={},order=[];const t=clean(text);const re=/[A-Za-z]+(?:'[A-Za-z]+)?/g;let x;
- while((x=re.exec(t))){const w=x[0];let lw=w.toLowerCase();if(lw.length===1&&lw!=='a'&&lw!=='i')continue;if(lw.includes("'"))continue;if(skipStop&&STOP.has(lw))continue;
+function wordInfo(text,skipStop=true){const m={},order=[];const t=clean(text);const re=/\p{L}+(?:'\p{L}+)?/gu;let x;
+ while((x=re.exec(t))){const w=x[0];if(DIACR.test(w))continue;let lw=w.toLowerCase();if(lw.length===1&&lw!=='a'&&lw!=='i')continue;if(lw.includes("'"))continue;if(skipStop&&STOP.has(lw))continue;
   const before=t.slice(0,x.index).replace(/["'(\[\s]+$/,'');const initial=!before||/[.!?:]$/.test(before);
   const cap=/^[A-Z]/.test(w);let e=m[lw];if(!e){e=m[lw]={lower:false,capMid:false,capInit:false,form:w};order.push(lw)}
   if(!cap)e.lower=true;else if(initial)e.capInit=true;else{e.capMid=true;if(!/^[A-Z]/.test(e.form)||e.form===e.form.toUpperCase()&&w!==w.toUpperCase())e.form=w}}
  return order.map(lw=>{const e=m[lw];if(lw==='i')return{en:'I',proper:false};
   if(e.lower)return{en:lw,proper:false};
   let en=e.form;if(en.length>1&&en===en.toUpperCase()&&!e.capMid)en=en[0]+en.slice(1).toLowerCase();
-  return{en,proper:e.capMid||!STOP.has(lw)&&e.capInit&&!COMMON.has(lw)}})}
+  return{en,proper:e.capMid||!STOP.has(lw)&&e.capInit&&!COMMON.has(lw)}}).filter(x=>{const lw=x.en.toLowerCase();
+  if(isEnglish(lw))return true; // in English list (or inflection)
+  // proper-noun exception: Title-case name, not foreign, not ALL CAPS
+  return x.proper&&/^[A-Z][a-z]+$/.test(x.en)&&!isForeign(x.en)})}
 // common words that are often sentence-initial but not names
 const COMMON=new Set('what when where why how who there here today yesterday tomorrow please yes hello hi now some many all every one two after before while because although once there'.split(' '));
 function words(text,skipStop=true){return wordInfo(text,skipStop).map(w=>w.en)}
@@ -24,19 +27,37 @@ function pickWrong(item,pool){ // pool: items with zh
  if(item.proper){const np=ok.filter(p=>!p.proper);if(np.length)ok=np}
  if(!ok.length)return null;return ok[Math.floor(Math.random()*ok.length)];}
 
+// ---- English / foreign language detection ----
+const DIACR=/[^\x00-\x7F]/;
+const FOREIGN_FN=new Set('de des du les et el los las del und der das il di una une avec pour sur ein eine mit por para dos nao que sont est très tres pas'.split(' '));
+function fold(w){return w.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/ß/g,'ss')}
+function isEnglish(lw){lw=lw.toLowerCase();if(FOREIGN_FN.has(lw))return false;if(!DICT)return true;if(DICT.has(lw))return true;
+ for(const[suf,adds]of[['ies',['y']],['es',['']],['s',['']],['ed',['','e']],['ing',['','e']],['er',['','e']],['est',['','e']],['ly',['']]])
+  if(lw.endsWith(suf)&&lw.length>suf.length+1){const b=lw.slice(0,-suf.length);if(adds.some(a=>DICT.has(b+a)))return true}
+ return false}
+function isForeign(w){if(DIACR.test(w))return true;const lw=w.toLowerCase();if(FOREIGN_FN.has(lw))return true;if(isEnglish(lw))return false;if(FOREIGN&&FOREIGN.has(fold(lw)))return true;
+ // typical Romance/German endings, or English word + foreign ending (transparent+e)
+ if(/(ente|mente|cion|ique|elle|idad|dad|cao|oes|ung|eur|euse|aire|eaux|iert|lich|keit|heit|ismo|zione)$/.test(lw))return true;
+ return !!DICT&&/[aeo]$/.test(lw)&&DICT.has(lw.slice(0,-1))&&lw.length>5}
+// sentence is English if no diacritics, >=60% English tokens, and not several clearly-foreign words
+function englishSentence(s){if(DIACR.test(s.replace(/[‘’“”–—…•·°×]/g,'')))return false;const t=s.match(/[A-Za-z]+/g)||[];if(!t.length)return false;
+ let en=0,fo=0;for(const w of t){if(isEnglish(w))en++;else if(isForeign(w))fo++}
+ return en/t.length>=0.6&&!(fo>=2&&fo/t.length>=0.25)}
 // ---- OCR junk filtering ----
 const SHORT=new Set('i a an am is at on in to of it he me my we us up no go do so or by be if as oh ok hi mr mrs dr ms'.split(' '));
 const NOVOWEL_OK=new Set('by my mr mrs dr ms why shy sky fly try dry cry gym hymn rhythm'.split(' '));
-let DICT=null;function setDict(list){DICT=new Set((Array.isArray(list)?list:String(list).split(/\s+/)).map(w=>w.trim().toLowerCase()).filter(Boolean))}
-function wordOK(raw,conf){const w=raw.replace(/^[^A-Za-z]+|[^A-Za-z']+$/g,'');if(!/^[A-Za-z]+(?:'[A-Za-z]+)?$/.test(w))return null;const lw=w.toLowerCase().replace(/'.*$/,'');
+let DICT=null,FOREIGN=null;function setForeign(list){FOREIGN=new Set((Array.isArray(list)?list:String(list).split(/\s+/)).map(w=>fold(w.trim().toLowerCase())).filter(Boolean))}
+function setDict(list){DICT=new Set((Array.isArray(list)?list:String(list).split(/\s+/)).map(w=>w.trim().toLowerCase()).filter(Boolean))}
+function wordOK(raw,conf){if(/[^\x00-\x7F]/.test(raw.replace(/[‘’“”–—…]/g,'')))return null;const w=raw.replace(/^[^A-Za-z]+|[^A-Za-z']+$/g,'');if(!/^[A-Za-z]+(?:'[A-Za-z]+)?$/.test(w))return null;const lw=w.toLowerCase().replace(/'.*$/,'');
  if(conf<70)return null;
  if(lw.length<=2)return SHORT.has(lw)?w:null;
  if(!/[aeiouy]/.test(lw)&&!NOVOWEL_OK.has(lw))return null;
  if(/^[A-Z]{2,4}$/.test(w)&&conf<=85&&!(DICT&&DICT.has(lw)))return null;
  if(/(.)\1\1/.test(lw))return null;
+ if(FOREIGN_FN.has(lw)||isForeign(lw)&&!isEnglish(lw))return null;
  if(DICT&&!DICT.has(lw)){const base=lw.replace(/(ies|es|s|ed|ing|ly|er|est)$/,'');
   if(!(DICT.has(base)||DICT.has(base+'e')||DICT.has(base+'y'))){ // keep Capitalized proper nouns with high conf only
-   if(!(/^[A-Z][a-zA-Z]*$/.test(w)&&conf>=85&&lw.length>=3))return null}}
+   if(!(/^[A-Z][a-z]+$/.test(w)&&conf>=85&&lw.length>=3))return null}}
  return w}
 // data: tesseract result.data. Returns {text, good, total, meanConf}
 function filterOCR(data){const out=[];let good=0,total=0,cs=0;
@@ -55,6 +76,6 @@ async function autoOCR(img,{rotate,recognize,small,progress=()=>{}}){const sm=sm
  for(const deg of [0,90,270,180]){progress('正在判断方向… '+deg+'°');const d=await recognize(deg?rotate(sm,deg):sm);const sc=orientScore(d);
   if(sc>best.score)best={deg,score:sc,data:d};if(deg===0&&filterOCR(d).good>=5)break}
  progress('正在识别文字…');const full=best.deg?rotate(img,best.deg):img;const data=await recognize(full,true);return{deg:best.deg,img:full,data,...filterOCR(data)}}
-g.PE={sentences,words,wordInfo,pickWrong,overlap,setDict,wordOK,filterOCR,autoOCR};
+g.PE={setForeign,isEnglish,isForeign,englishSentence,sentences,words,wordInfo,pickWrong,overlap,setDict,wordOK,filterOCR,autoOCR};
 if(typeof module!=='undefined')module.exports=g.PE;
 })(typeof window!=='undefined'?window:globalThis);

@@ -32,7 +32,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v6</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v7</div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -98,7 +98,7 @@ function cropRegion(full){const c=CR.src,s=CR.s,b=CR.b;let sx=0,sy=0,sw=c.width,
  const m=2000,k=Math.min(1,m/Math.max(sw,sh)),o=document.createElement('canvas');o.width=Math.max(1,Math.round(sw*k));o.height=Math.max(1,Math.round(sh*k));
  o.getContext('2d').drawImage(c,sx,sy,sw,sh,0,0,o.width,o.height);return o}
 function cropDone(full){const img=cropRegion(full);window._lastCrop=img;closeCrop();CR=null;runOCR(img)}
-let DICTP=null;function loadDict(){return DICTP||(DICTP=fetch('words.txt').then(r=>r.ok?r.text():'').then(t=>{if(t)PE.setDict(t)}).catch(()=>{}))}
+let DICTP=null;function loadDict(){return DICTP||(DICTP=Promise.all([fetch('words.txt').then(r=>r.ok?r.text():'').then(t=>{if(t)PE.setDict(t)}).catch(()=>{}),fetch('foreign.txt').then(r=>r.ok?r.text():'').then(t=>{if(t)PE.setForeign(t)}).catch(()=>{})]))}
 let OW=null;async function ocrWorker(){if(!OW)OW=Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text'&&OW_P)busy(OW_P+' '+Math.round(m.progress*100)+'%')}});return OW}
 let OW_P='';
 function rotCanvas(c,deg){const r=document.createElement('canvas');r.width=deg%180?c.height:c.width;r.height=deg%180?c.width:c.height;const x=r.getContext('2d');x.translate(r.width/2,r.height/2);x.rotate(deg*Math.PI/180);x.drawImage(c,-c.width/2,-c.height/2);return r}
