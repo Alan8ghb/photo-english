@@ -17,6 +17,8 @@ main{padding:16px;max-width:700px;margin:auto}
 .en{font-size:40px;font-weight:bold;text-align:center;margin:16px 0;word-break:break-word}.en.s{font-size:30px}
 .play{display:block;margin:10px auto;width:120px;height:120px;border-radius:60px;border:none;background:#ffb300;font-size:56px}
 .opt{display:block;width:100%;min-height:90px;font-size:30px;border:3px solid #1e6fd9;background:#fff;border-radius:18px;margin:14px 0;padding:12px}
+.opt,.z{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+#ed{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50}#ed>div{background:#fff;border-radius:20px;padding:22px;width:92%;max-width:520px}#ed .ew{font-size:44px;font-weight:bold;text-align:center;margin:6px 0 14px;word-break:break-word}#ed input{width:100%;box-sizing:border-box;font-size:32px;padding:14px;border:3px solid #1e6fd9;border-radius:14px}#ed .eb{display:flex;gap:14px;margin-top:18px}#ed .eb button{flex:1;min-height:76px;font-size:32px;border:none;border-radius:16px;color:#fff}
 .opt.s{font-size:24px}.opt.right{background:#1a9b4b;color:#fff;border-color:#1a9b4b}.opt.wrong{background:#fdd;border-color:#d33}
 .msg{text-align:center;font-size:30px;min-height:44px}.prog{text-align:center;color:#666}
 .row{padding:10px 0;border-bottom:1px solid #eee}.row .z{color:#1e6fd9}.na{color:#aaa}
@@ -32,7 +34,7 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v12</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v13</div><div id="ed"><div><div style="font-size:24px;color:#555">修改中文意思</div><div class="ew" id="edw"></div><input id="edi" type="text"><div class="eb"><button id="eds" style="background:#1a9b4b">保存</button><button id="edc" style="background:#888">取消</button></div></div></div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">单词王</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -56,7 +58,7 @@ function bank(){const b=JSON.parse(localStorage.getItem('pe_bank')||'{"w":{}}');
  let mx=Math.max(0,...Object.values(b.w).map(x=>x.seq||0));
  const rs=load().map((r,ri)=>({r,ri})).sort((a,c)=>a.r.date-c.r.date||c.ri-a.ri);const ord={};let n=0;
  for(const{r}of rs)(r.words||[]).forEach(it=>{const k=it.en.toLowerCase();if(!(k in ord))ord[k]=n++;const o=b.w[k];
-  if(!o){b.w[k]={type:'word',en:it.en,zh:it.zh,proper:!!it.proper,date:r.date};ch=1}else if(!o.zh&&it.zh){o.zh=it.zh;ch=1}});
+  if(!o){b.w[k]={type:'word',en:it.en,zh:it.zh,proper:!!it.proper,date:r.date};ch=1}else if(!o.zh&&it.zh&&!o.userEdited){o.zh=it.zh;ch=1}});
  const ns=Object.entries(b.w).filter(([k,x])=>!x.seq).sort(([ka,a],[kc,c])=>(a.date||0)-(c.date||0)||(ord[ka]??1e9)-(ord[kc]??1e9));
  for(const[,x]of ns){x.seq=++mx;ch=1}
  if(ch)try{localStorage.setItem('pe_bank',JSON.stringify(b))}catch(_){}return b}
@@ -128,9 +130,23 @@ $('#cam').onchange=onFile;$('#gal').onchange=onFile;
 function detail(i){const r=load()[i];setHead('学习记录',1);
  app.innerHTML=`<button class="big green" onclick="go('study',{i:${i}})">▶ 开始学习</button>
  <div class="card">${r.words.map(x=>rowH(x,`detail(${i})`)).join('')||'无'}</div>
- ${r.thumb?`<img class="prev" src="${r.thumb}">`:''}`}
+ ${r.thumb?`<img class="prev" src="${r.thumb}">`:''}`;bindZ()}
 const q=s=>esc(s).replace(/'/g,"\\'");
-function rowH(x,re){const kn=isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div><button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'隐藏该词'}</button></div>`}
+function rowH(x,re){const kn=isKnown(x.en);return `<div class="row rowf"><div onclick="say('${q(x.en)}')" style="${kn?'opacity:.5':''}">🔊 ${esc(x.en)}<br><span class="z" data-en="${esc(x.en)}" data-re="${esc(re)}">${x.zh?esc(x.zh):'<span class="na">（翻译暂不可用）</span>'}</span></div><button class="known${kn?' on':''}" onclick="setKnown('${q(x.en)}',${!kn});${re}">${kn?'恢复':'隐藏该词'}</button></div>`}
+// long-press editing of Chinese meaning
+function lp(el,fn){let t=null,x=0,y=0,fired=0;const c=()=>{clearTimeout(t);t=null};
+ el.addEventListener('pointerdown',e=>{fired=0;x=e.clientX;y=e.clientY;c();t=setTimeout(()=>{t=null;fired=1;fn()},600)});
+ el.addEventListener('pointermove',e=>{if(t&&Math.hypot(e.clientX-x,e.clientY-y)>10)c()});
+ ['pointerup','pointercancel','pointerleave'].forEach(n=>el.addEventListener(n,c));
+ el.addEventListener('contextmenu',e=>e.preventDefault());
+ el.addEventListener('click',e=>{if(fired){fired=0;e.stopImmediatePropagation();e.preventDefault()}},true)}
+function curZh(en){const k=en.toLowerCase(),b=bank().w[k];if(b&&b.zh)return b.zh;for(const r of load())for(const w of r.words||[])if(w.en.toLowerCase()===k&&w.zh)return w.zh;return ''}
+function setZh(en,zh){const k=en.toLowerCase(),b=bank();if(!b.w[k])b.w[k]={type:'word',en,date:Date.now()};Object.assign(b.w[k],{zh,userEdited:true});localStorage.setItem('pe_bank',JSON.stringify(b));
+ const rs=load();rs.forEach(r=>(r.words||[]).forEach(w=>{if(w.en.toLowerCase()===k){w.zh=zh;w.userEdited=true}}));save(rs);
+ if(S){[...S.items,...S.pool].forEach(x=>{if(x.en.toLowerCase()===k){x.zh=zh;x.userEdited=true}})}}
+function editZh(en,after){$('#edw').textContent=en;const i=$('#edi');i.value=curZh(en);$('#ed').style.display='flex';setTimeout(()=>i.focus(),50);
+ const close=()=>{$('#ed').style.display='none'};
+ $('#edc').onclick=close;$('#eds').onclick=()=>{const v=i.value.trim();close();if(!v)return;setZh(en,v);after&&after()}}
 function say(t){speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-US';u.rate=.85;const v=speechSynthesis.getVoices().find(v=>v.lang.replace('_','-').startsWith('en-US'));if(v)u.voice=v;speechSynthesis.speak(u)}
 let S;
 function study(o){const{i,g}=o;let items=o.items;const rs=load();const all=Object.values(bank().w);let pool,base,title='学习';
@@ -140,12 +156,12 @@ function study(o){const{i,g}=o;let items=o.items;const rs=load();const all=Objec
  items=(items||base).filter(x=>!isKnown(x.en));
  if(!items.length){app.innerHTML='<p class="card">没有可学习的单词。</p><button class="big gray" onclick="go(\'home\')">回到分组</button>';return}
  S={o,items,pool,k:0,wrong:new Set(),title};show()}
-function show(){const it=S.items[S.k];const w=PE.pickWrong(it,S.pool);
+function show(quiet){const it=S.items[S.k];const zl=(it.zh||'').trim(),ov=z=>{z=(z||'').trim();return !z||z===zl||z.includes(zl)||zl.includes(z)};const w=PE.pickWrong(it,S.pool.filter(x=>x.en.toLowerCase()!==it.en.toLowerCase()&&!ov(x.zh)))||null;
  const opts=w?(Math.random()<.5?[it.zh,w.zh]:[w.zh,it.zh]):[it.zh];
  app.innerHTML=`<div class="prog">${S.o.items?'错题再练 · ':''}${S.k+1} / ${S.items.length}</div>
  <div class="en">${esc(it.en)}</div><div style="position:relative;display:flex;justify-content:center;align-items:center"><button class="play" style="margin:10px 0" onclick="say(S.items[S.k].en)">🔊</button><button class="known" style="position:absolute;left:calc(50% + 76px);top:50%;transform:translateY(-50%);line-height:1.2;padding:10px 14px" onclick="setKnown(S.items[S.k].en,true);next()">隐藏<br>该词</button></div>
  ${opts.map(o=>`<button class="opt" data-ok="${o===it.zh?1:0}">${esc(o)}</button>`).join('')}<div class="msg" id="msg"></div>`;
- app.querySelectorAll('.opt').forEach(b=>b.onclick=()=>pick(b));say(it.en)}
+ app.querySelectorAll('.opt').forEach(b=>{b.onclick=()=>pick(b);lp(b,()=>editZh(S.items[S.k].en,()=>show(1)))});if(!quiet)say(it.en)}
 function pick(b){const m=$('#msg');if(b.dataset.ok==='1'){b.classList.add('right');m.textContent='👍 答对了！';app.querySelectorAll('.opt').forEach(x=>x.onclick=null);
   setTimeout(next,900)}
  else{b.classList.add('wrong');if(!S.wrong.has(S.k)){S.wrong.add(S.k);addWrong(S.items[S.k])}m.textContent='💪 没关系，再试一次！';say(S.items[S.k].en)}}
@@ -155,6 +171,7 @@ function end(){const n=S.items.length,w=S.wrong.size,g=S.o.g;S.wrongItems=[...S.
  app.innerHTML=`<div class="card" style="text-align:center"><div style="font-size:60px">${w?'💪':'🎉'}</div><div class="en">${n-w} / ${n}</div><div style="font-size:28px">答对 ${n-w} · 答错 ${w}</div></div>
  ${S.wrongItems.length?`<button class="big orange" id="redo" onclick="redo()">错题再练</button>`:''}${ng?`<button class="big green" onclick="go('study',{g:${g+1}})">下一组</button>`:''}<button class="big gray" onclick="go('home')">回到分组</button>`}
 function redo(){go('study',{...S.o,items:S.wrongItems})}
+function bindZ(){app.querySelectorAll('.z[data-en]').forEach(z=>{lp(z,()=>editZh(z.dataset.en,()=>Function(z.dataset.re)()));z.addEventListener('click',e=>{if(z._lp)e.stopPropagation()})})}
 speechSynthesis.getVoices();bank();home();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js').then(r=>r.update());
 </script></body></html>
