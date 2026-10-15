@@ -21,18 +21,18 @@ main{padding:16px;max-width:700px;margin:auto}
 .msg{text-align:center;font-size:30px;min-height:44px}.prog{text-align:center;color:#666}
 .row{padding:10px 0;border-bottom:1px solid #eee}.row .z{color:#1e6fd9}.na{color:#aaa}
 .tabs{display:flex;gap:10px}.tabs button{flex:1;font-size:24px;padding:14px;border-radius:14px;border:2px solid #1e6fd9;background:#fff}.tabs button.on{background:#1e6fd9;color:#fff}
-#busy{position:fixed;inset:0;background:#000a;color:#fff;display:none;align-items:center;justify-content:center;font-size:30px;text-align:center;padding:20px}
-#crop{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:5}
-#cwrap{flex:1;position:relative;overflow:hidden;touch-action:none}
-#cimg{position:absolute;touch-action:none;user-select:none;-webkit-user-select:none}
+#busy{position:fixed;inset:0;z-index:60;background:#000a;color:#fff;display:none;align-items:center;justify-content:center;font-size:30px;text-align:center;padding:20px}
+#crop{position:fixed;left:0;top:0;right:0;width:100vw;height:100vh;height:100dvh;background:#000;display:none;flex-direction:column;z-index:50;overflow:hidden}
+#cwrap{flex:1 1 auto;min-height:0;min-width:0;position:relative;overflow:hidden;touch-action:none}
+#cimg{position:absolute;max-width:100%;max-height:100%;touch-action:none;user-select:none;-webkit-user-select:none}
 #cbox{position:absolute;border:3px solid #ffeb3b;box-shadow:0 0 0 9999px #0009;touch-action:none;cursor:move}
 .h{position:absolute;width:76px;height:76px;touch-action:none;display:flex;align-items:center;justify-content:center}
 .h::after{content:"";width:48px;height:48px;border-radius:24px;background:#ffeb3b;border:4px solid #fff;box-shadow:0 0 6px #000}
 .h.tl{left:-38px;top:-38px}.h.tr{right:-38px;top:-38px}.h.bl{left:-38px;bottom:-38px}.h.br{right:-38px;bottom:-38px}
-#cbar{display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom))}
+#cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v5</div>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v6</div>
 <header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
 <main id="app"></main>
 <div id="busy"></div>
@@ -72,10 +72,12 @@ async function onFile(e){lastSrc=e.target.id;const f=e.target.files[0];e.target.
  try{busy('请稍候…');const b=await decode(f);const W=b.width||b.naturalWidth,H=b.height||b.naturalHeight,m=4000,s=Math.min(1,m/Math.max(W,H));
   const c=document.createElement('canvas');c.width=Math.round(W*s);c.height=Math.round(H*s);c.getContext('2d').drawImage(b,0,0,c.width,c.height);if(b.close)b.close();
   busy();openCrop(c)}catch(err){busy();alert('出错了：'+err.message)}}
-function openCrop(c){CR={src:c};$('#crop').style.display='flex';layoutCrop(true)}
-function layoutCrop(reset){const w=$('#cwrap'),c=CR.src,pad=40,cw=w.clientWidth-pad*2,ch=w.clientHeight-pad*2,s=Math.min(cw/c.width,ch/c.height);
- const dw=c.width*s,dh=c.height*s,cv=$('#cimg');CR.s=s;CR.ox=(w.clientWidth-dw)/2;CR.oy=(w.clientHeight-dh)/2;CR.dw=dw;CR.dh=dh;
- const k=Math.min(2,devicePixelRatio||1);cv.width=dw*k;cv.height=dh*k;cv.style.width=dw+'px';cv.style.height=dh+'px';cv.style.left=CR.ox+'px';cv.style.top=CR.oy+'px';
+function openCrop(c){CR={src:c};$('#crop').style.display='flex';requestAnimationFrame(()=>requestAnimationFrame(()=>{if(CR)layoutCrop(true)}))}
+function wrapSize(){const w=$('#cwrap'),bh=$('#cbar').offsetHeight||100;let W=w.clientWidth,H=w.clientHeight;
+ if(!W||W>innerWidth)W=innerWidth;if(!H||H>innerHeight-bh)H=Math.max(100,innerHeight-bh);return[W,H]}
+function layoutCrop(reset){const[WW,WH]=wrapSize(),c=CR.src,pad=40,cw=Math.max(40,WW-pad*2),ch=Math.max(40,WH-pad*2),s=Math.min(cw/c.width,ch/c.height);
+ const dw=Math.floor(c.width*s),dh=Math.floor(c.height*s),cv=$('#cimg');CR.s=s;CR.ox=(WW-dw)/2;CR.oy=(WH-dh)/2;CR.dw=dw;CR.dh=dh;
+ const k=Math.min(2,devicePixelRatio||1);cv.width=Math.round(dw*k);cv.height=Math.round(dh*k);cv.style.width=dw+'px';cv.style.height=dh+'px';cv.style.left=CR.ox+'px';cv.style.top=CR.oy+'px';
  cv.getContext('2d').drawImage(c,0,0,cv.width,cv.height);
  if(reset)CR.b={x:dw*.05,y:dh*.05,w:dw*.9,h:dh*.9};drawBox()}
 function drawBox(){const b=CR.b,e=$('#cbox');e.style.left=CR.ox+b.x+'px';e.style.top=CR.oy+b.y+'px';e.style.width=b.w+'px';e.style.height=b.h+'px'}
@@ -96,16 +98,21 @@ function cropRegion(full){const c=CR.src,s=CR.s,b=CR.b;let sx=0,sy=0,sw=c.width,
  const m=2000,k=Math.min(1,m/Math.max(sw,sh)),o=document.createElement('canvas');o.width=Math.max(1,Math.round(sw*k));o.height=Math.max(1,Math.round(sh*k));
  o.getContext('2d').drawImage(c,sx,sy,sw,sh,0,0,o.width,o.height);return o}
 function cropDone(full){const img=cropRegion(full);window._lastCrop=img;closeCrop();CR=null;runOCR(img)}
+let DICTP=null;function loadDict(){return DICTP||(DICTP=fetch('words.txt').then(r=>r.ok?r.text():'').then(t=>{if(t)PE.setDict(t)}).catch(()=>{}))}
+let OW=null;async function ocrWorker(){if(!OW)OW=Tesseract.createWorker('eng',1,{logger:m=>{if(m.status==='recognizing text'&&OW_P)busy(OW_P+' '+Math.round(m.progress*100)+'%')}});return OW}
+let OW_P='';
+function rotCanvas(c,deg){const r=document.createElement('canvas');r.width=deg%180?c.height:c.width;r.height=deg%180?c.width:c.height;const x=r.getContext('2d');x.translate(r.width/2,r.height/2);x.rotate(deg*Math.PI/180);x.drawImage(c,-c.width/2,-c.height/2);return r}
+function smallCanvas(c){const k=Math.min(1,1600/Math.max(c.width,c.height)),o=document.createElement('canvas');o.width=Math.round(c.width*k);o.height=Math.round(c.height*k);o.getContext('2d').drawImage(c,0,0,o.width,o.height);return o}
 async function runOCR(img){
- try{busy('正在识别文字…');
-  const res=await Tesseract.recognize(img,'eng',{logger:m=>{if(m.status==='recognizing text')busy('正在识别文字… '+Math.round(m.progress*100)+'%')}});
-  const text=res.data.text;const S=PE.sentences(text),WI=PE.wordInfo(text),W=WI.map(w=>w.en);
-  if(!S.length&&!W.length){busy();alert('没有找到英文，请再拍清楚一点');return}
+ try{busy('正在识别文字…');await loadDict();const w=await ocrWorker();
+  const r=await PE.autoOCR(img,{rotate:rotCanvas,small:smallCanvas,progress:t=>{OW_P=t;busy(t)},recognize:async(i)=>(await w.recognize(i)).data});
+  OW_P='';img=r.img;const text=r.text;const S=PE.sentences(text),WI=PE.wordInfo(text),W=WI.map(w=>w.en);
+  if(!S.length&&!W.length){busy();alert('没有找到清楚的英文，请靠近一点、对准文字再拍（也可以用 ⟳ 旋转）');return}
   busy('正在翻译…');let tr=[];
   try{tr=await PETranslate([...W,...S])}catch(_){}
   const rec={date:Date.now(),text,thumb:thumb(img),words:WI.map((w,i)=>({type:'word',en:w.en,proper:w.proper,zh:tr[i]||null})),sentences:S.map((en,i)=>({type:'sent',en,zh:tr[W.length+i]||null}))};
   const rs=load();rs.unshift(rec);try{save(rs)}catch(_){rec.thumb='';save(rs)}bank();busy();go('detail',0)
- }catch(err){busy();alert('出错了：'+err.message)}}
+ }catch(err){OW_P='';busy();alert('出错了：'+err.message)}}
 function thumb(c){const t=document.createElement('canvas'),s=Math.min(1,400/c.width);t.width=Math.round(c.width*s);t.height=Math.round(c.height*s);t.getContext('2d').drawImage(c,0,0,t.width,t.height);return t.toDataURL('image/jpeg',.6)}
 $('#cam').onchange=onFile;$('#gal').onchange=onFile;
 let tab='word';
