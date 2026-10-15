@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#1e6fd9"><link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png">
-<title>拍照学英语</title>
+<title>单词王</title>
 <style>
 *{box-sizing:border-box}body{margin:0;font-family:-apple-system,"PingFang SC","Noto Sans SC",sans-serif;background:#fffaf0;color:#222;font-size:24px;line-height:1.4}
 header{background:#1e6fd9;color:#fff;padding:18px 16px;font-size:30px;font-weight:bold;display:flex;align-items:center;gap:12px;padding-top:max(18px,env(safe-area-inset-top))}
@@ -32,8 +32,8 @@ main{padding:16px;max-width:700px;margin:auto}
 #cbar{flex:none;display:flex;gap:10px;padding:10px;padding-bottom:max(10px,env(safe-area-inset-bottom));background:#222;position:relative;z-index:2}
 #cbar button{flex:1;min-height:80px;font-size:28px;font-weight:bold;border:none;border-radius:18px;color:#fff;background:#888}
 img.prev{max-width:100%;border-radius:12px}
-</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v10</div>
-<header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">拍照学英语</span></header>
+</style></head><body><div style="position:fixed;right:8px;bottom:6px;font-size:16px;color:#888;z-index:9">v11</div>
+<header><button id="back" style="display:none" onclick="go('home')">‹</button><span id="title">单词王</span></header>
 <main id="app"></main>
 <div id="busy"></div>
 <div id="crop"><div id="cwrap"><canvas id="cimg"></canvas><div id="cbox"><div class="h tl" data-h="tl"></div><div class="h tr" data-h="tr"></div><div class="h bl" data-h="bl"></div><div class="h br" data-h="br"></div></div></div>
@@ -67,7 +67,7 @@ const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',
 function busy(t){const b=$('#busy');b.style.display=t?'flex':'none';b.textContent=t||''}
 function setHead(t,back){$('#title').textContent=t;$('#back').style.display=back?'':'none'}
 function go(v,a){speechSynthesis.cancel();({home,recs,detail,study}[v])(a);scrollTo(0,0)}
-function home(){setHead('拍照学英语');const G=groups(),P=GP(),rs=load();
+function home(){setHead('单词王');const G=groups(),P=GP(),rs=load();
  app.innerHTML=`<div style="display:flex;gap:12px"><button class="big" style="flex:1" onclick="$('#cam').click()">📷 拍照</button><button class="big gray" style="flex:1" onclick="$('#gal').click()">🖼️ 相册</button></div>`+
  (G.length?'<h2>单词分组</h2>':'<p class="card">拍一页英文，自动整理单词。</p>')+
  '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">'+G.map((g,i)=>{const p=P[i],ok=p&&!p.w;return `<button onclick="go('study',{g:${i}})" style="min-height:76px;font-size:34px;font-weight:bold;border:none;border-radius:16px;color:#fff;background:${ok?'#1a9b4b':p?'#e07b00':'#1e6fd9'}">${i+1}</button>`}).join('')+'</div>'+
